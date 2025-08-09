@@ -2,7 +2,7 @@
   "expo": {
     "name": "my-calm-baby",
     "slug": "my-calm-baby",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/images/icons/ios-light.png",
     "scheme": "mycalmbaby",
