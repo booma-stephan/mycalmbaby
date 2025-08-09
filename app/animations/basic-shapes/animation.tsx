@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Animated, View, Dimensions, Vibration, Platform } from 'react-native';
-import { Gyroscope, Accelerometer } from 'expo-sensors';
+
 import {
   PanGestureHandler,
   State,
@@ -23,11 +23,7 @@ interface AnimationProps {
   onAnimationLoaded?: () => void;
 }
 
-interface GyroData {
-  x: number;
-  y: number;
-  z: number;
-}
+
 
 interface ShapePosition {
   x: number;
@@ -108,27 +104,31 @@ export default function BasicShapesAnimation({
   height,
   onAnimationLoaded,
 }: AnimationProps) {
-  const [gyroData, setGyroData] = useState<GyroData>({ x: 0, y: 0, z: 0 });
-  const [isGyroAvailable, setIsGyroAvailable] = useState(false);
+
   const [shapePositions, setShapePositions] = useState<ShapePosition[]>([]);
   const [dragStates, setDragStates] = useState<DragState[]>([]);
   const [shapePhysics, setShapePhysics] = useState<ShapePhysics[]>([]);
   const [shapeStates, setShapeStates] = useState<ShapeState[]>([]);
   const [particles, setParticles] = useState<Particle[]>([]);
   const [backgroundGradient, setBackgroundGradient] = useState(0);
-  const gyroSubscription = useRef<any>(null);
-  const accelSubscription = useRef<any>(null);
-  const dragEnabled = useRef(true);
+
+
   // Animation frame reference for future use
   // const animationFrame = useRef<number | null>(null);
   const physicsTimer = useRef<NodeJS.Timeout | null>(null);
+  const particleCounter = useRef<number>(0);
 
   // Initialize shape positions, physics, and states
   useEffect(() => {
-    const initialPositions = elements.map((element, index) => ({
-      x: (element.properties.position?.x || 0.5) * screenWidth,
-      y: (element.properties.position?.y || 0.5) * screenHeight,
-    }));
+    const initialPositions = elements.map((element, index) => {
+      // Start shapes gently from different heights for staggered entrance
+      const baseY = screenHeight * 0.3; // Start from upper third instead of top
+      const randomOffset = (Math.random() - 0.5) * 100; // Small random variation
+      return {
+        x: (element.properties.position?.x || 0.2 + (index * 0.15)) * screenWidth,
+        y: baseY + randomOffset,
+      };
+    });
     
     const initialDragStates = elements.map(() => ({
       isDragging: false,
@@ -136,11 +136,11 @@ export default function BasicShapesAnimation({
       startY: 0,
     }));
     
-    const initialPhysics = elements.map(() => ({
-      velocityX: (Math.random() - 0.5) * 5,
-      velocityY: (Math.random() - 0.5) * 5,
+    const initialPhysics = elements.map((_, index) => ({
+      velocityX: (Math.random() - 0.5) * 1, // Much gentler initial movement
+      velocityY: Math.random() * 0.5, // Very gentle downward drift
       mass: 1,
-      bounciness: 0.8,
+      bounciness: 0.3, // Softer bouncing
     }));
     
     const initialStates = elements.map(() => ({
@@ -167,8 +167,13 @@ export default function BasicShapesAnimation({
     for (let i = 0; i < particleCount; i++) {
       const angle = (Math.PI * 2 * i) / particleCount;
       const velocity = 3 + Math.random() * 7;
+      
+      // Use incrementing counter for guaranteed unique IDs
+      particleCounter.current += 1;
+      const uniqueId = `particle-${Date.now()}-${particleCounter.current}-${Math.random().toString(36).substr(2, 5)}`;
+      
       const particle: Particle = {
-        id: `particle-${Date.now()}-${i}`,
+        id: uniqueId,
         x: x,
         y: y,
         vx: Math.cos(angle) * velocity,
@@ -236,17 +241,17 @@ export default function BasicShapesAnimation({
           const newX = newPositions[i].x + physics[i].velocityX;
           const newY = newPositions[i].y + physics[i].velocityY;
           
-          // Apply gravity
+          // Apply gentle gravity (much softer)
           physics[i] = {
             ...physics[i],
-            velocityY: physics[i].velocityY + 0.3
+            velocityY: physics[i].velocityY + 0.05
           };
           
-          // Bounce off walls
+          // Gentle bouncing with soft rebounds
           if (newX <= 50 || newX >= screenWidth - 50) {
             physics[i] = {
               ...physics[i],
-              velocityX: physics[i].velocityX * -0.7
+              velocityX: physics[i].velocityX * -0.4 // Softer bounce
             };
             newPositions[i] = {
               x: Math.max(50, Math.min(screenWidth - 50, newX)),
@@ -256,7 +261,7 @@ export default function BasicShapesAnimation({
           } else if (newY <= 50 || newY >= screenHeight - 100) {
             physics[i] = {
               ...physics[i],
-              velocityY: physics[i].velocityY * -0.7
+              velocityY: physics[i].velocityY * -0.4 // Softer bounce
             };
             newPositions[i] = {
               x: newX,
@@ -267,11 +272,19 @@ export default function BasicShapesAnimation({
             newPositions[i] = { x: newX, y: newY };
           }
           
-          // Apply friction
+          // Apply gentle air resistance for floating effect
           physics[i] = {
             ...physics[i],
-            velocityX: physics[i].velocityX * 0.99,
-            velocityY: physics[i].velocityY * 0.99
+            velocityX: physics[i].velocityX * 0.98,
+            velocityY: physics[i].velocityY * 0.98
+          };
+          
+          // Add gentle floating motion
+          const time = Date.now() * 0.001; // Convert to seconds
+          const floatOffset = Math.sin(time + i) * 0.5; // Gentle up/down motion
+          physics[i] = {
+            ...physics[i],
+            velocityY: physics[i].velocityY + floatOffset * 0.02
           };
         }
         
@@ -337,91 +350,13 @@ export default function BasicShapesAnimation({
     };
   }, [dragStates, shapePhysics, playSound, createParticleExplosion]);
 
-  // Setup gyroscope and accelerometer
-  useEffect(() => {
-    const setupSensors = async () => {
-      try {
-        const available = await Gyroscope.isAvailableAsync();
-        console.log('🔍 Gyroscope availability check:', available);
-        setIsGyroAvailable(available);
-        
-        if (available) {
-          console.log('🎯 Gyroscope available - enabling shape movement');
-          Gyroscope.setUpdateInterval(30); // Smoother updates
-          
-          gyroSubscription.current = Gyroscope.addListener((gyroscopeData) => {
-            setGyroData(gyroscopeData);
-            
-            // Apply gyro to physics
-            setShapePhysics(prev => prev.map(p => ({
-              ...p,
-              velocityX: Math.max(-10, Math.min(10, p.velocityX + gyroscopeData.y * 0.3)),
-              velocityY: Math.max(-10, Math.min(10, p.velocityY - gyroscopeData.x * 0.3)),
-            })));
-          });
-          
-          console.log('✅ Gyroscope listener set up successfully');
-        } else {
-          console.log('❌ Gyroscope not available - using physics only');
-        }
-        
-        // Setup accelerometer for shake detection
-        const accelAvailable = await Accelerometer.isAvailableAsync();
-        if (accelAvailable) {
-          Accelerometer.setUpdateInterval(100);
-          
-          let lastShakeTime = 0;
-          accelSubscription.current = Accelerometer.addListener((data) => {
-            const acceleration = Math.sqrt(
-              data.x * data.x + data.y * data.y + data.z * data.z
-            );
-            
-            // Detect shake
-            if (acceleration > 2.5) {
-              const now = Date.now();
-              if (now - lastShakeTime > 1000) {
-                lastShakeTime = now;
-                // Shuffle shapes on shake
-                setShapePositions(prev => prev.map(() => ({
-                  x: Math.random() * (screenWidth - 100) + 50,
-                  y: Math.random() * (screenHeight - 200) + 50,
-                })));
-                
-                setShapePhysics(prev => prev.map(() => ({
-                  velocityX: (Math.random() - 0.5) * 20,
-                  velocityY: (Math.random() - 0.5) * 20,
-                  mass: 1,
-                  bounciness: 0.8,
-                })));
-                
-                Vibration.vibrate(100);
-              }
-            }
-          });
-        }
-      } catch (error) {
-        console.error('❌ Error setting up gyroscope:', error);
-        setIsGyroAvailable(false);
-      }
-    };
 
-    setupSensors();
 
-    return () => {
-      if (gyroSubscription.current) {
-        gyroSubscription.current.remove();
-      }
-      if (accelSubscription.current) {
-        accelSubscription.current.remove();
-      }
-    };
-  }, []);
-
-  // Cycle background gradient
+  // Cycle background gradient - slower, calmer transitions
   useEffect(() => {
     const timer = setInterval(() => {
       setBackgroundGradient(prev => (prev + 1) % COLOR_PALETTES.length);
-    }, 5000);
+    }, 60000); // 1 minute instead of 5 seconds
     
     return () => clearInterval(timer);
   }, []);
@@ -475,8 +410,6 @@ export default function BasicShapesAnimation({
     switch (state) {
       case State.BEGAN:
         console.log(`👆 Started dragging shape ${shapeIndex}`);
-        // Disable gyroscope while dragging
-        dragEnabled.current = false;
         
         setDragStates(prev => prev.map((dragState, index) => 
           index === shapeIndex 
@@ -486,11 +419,15 @@ export default function BasicShapesAnimation({
         break;
 
       case State.ACTIVE:
-        // Update position while dragging (immutably)
+        // Update position while dragging with reduced sensitivity for babies
         setShapePositions(prev => prev.map((pos, index) => {
           if (index === shapeIndex) {
-            const newX = Math.max(25, Math.min(screenWidth - 25, pos.x + translationX));
-            const newY = Math.max(25, Math.min(screenHeight - 25, pos.y + translationY));
+            // Reduce sensitivity by 60% for gentler, calmer movement
+            const dampedTranslationX = translationX * 0.4;
+            const dampedTranslationY = translationY * 0.4;
+            
+            const newX = Math.max(25, Math.min(screenWidth - 25, pos.x + dampedTranslationX));
+            const newY = Math.max(25, Math.min(screenHeight - 25, pos.y + dampedTranslationY));
             return { x: newX, y: newY }; // Always return new object
           }
           return { ...pos }; // Return copy even for unchanged positions
@@ -500,83 +437,36 @@ export default function BasicShapesAnimation({
       case State.END:
       case State.CANCELLED:
       case State.FAILED:
-        console.log(`✋ Stopped dragging shape ${shapeIndex}`);
-        
-        // Calculate throw velocity based on gesture speed
+        console.log(`👋 Finished dragging shape ${shapeIndex}`);
         if (state === State.END && dragStates[shapeIndex]) {
-          const velocityX = translationX / 10;
-          const velocityY = translationY / 10;
-          
+          // Gentler throw velocity for calmer physics
+          const velocityX = (translationX * 0.3) / 10; // Reduced throw strength
+          const velocityY = (translationY * 0.3) / 10;
           setShapePhysics(prev => {
             const newPhysics = [...prev];
             newPhysics[shapeIndex] = {
               ...newPhysics[shapeIndex],
-              velocityX: Math.max(-15, Math.min(15, velocityX)),
-              velocityY: Math.max(-15, Math.min(15, velocityY)),
+              velocityX: Math.max(-8, Math.min(8, velocityX)), // Lower max velocity
+              velocityY: Math.max(-8, Math.min(8, velocityY)),
             };
             return newPhysics;
           });
         }
         
-        // Release the shape
-        setDragStates(prev => {
-          const newStates = [...prev];
-          newStates[shapeIndex] = {
-            isDragging: false,
-            startX: 0,
-            startY: 0,
-          };
-          return newStates;
-        });
-        
+        setDragStates(prev => prev.map((dragState, index) => 
+          index === shapeIndex 
+            ? { ...dragState, isDragging: false }
+            : dragState
+        ));
         // Play drop sound
         playSound(MUSICAL_NOTES[(shapeIndex + 4) % MUSICAL_NOTES.length]);
         
-        // Re-enable gyro movement after a delay
-        setTimeout(() => {
-          dragEnabled.current = true;
-        }, 500);
+
         break;
     }
   };
 
-  // Update shape positions based on gyroscope data (only when not dragging)
-  useEffect(() => {
-    if (!isGyroAvailable || !dragEnabled.current) {
-      return;
-    }
 
-    if (elements.length === 0) {
-      return;
-    }
-
-    // Check if any shape is being dragged
-    const anyDragging = dragStates.some(state => state.isDragging);
-    if (anyDragging) {
-      return;
-    }
-
-    const sensitivity = 200; // Reduced sensitivity to work alongside drag
-
-    const newPositions = elements.map((element, index) => {
-      // Use current position as base for gyroscope movement
-      const currentPos = shapePositions[index];
-      if (!currentPos) return { x: 0, y: 0 };
-
-      // Calculate movement based on gyroscope data
-      const moveX = gyroData.y * sensitivity * 0.1; // Smaller incremental movements
-      const moveY = -gyroData.x * sensitivity * 0.1;
-
-      // Calculate new positions with bounds checking
-      const newX = Math.max(50, Math.min(screenWidth - 50, currentPos.x + moveX));
-      const newY = Math.max(50, Math.min(screenHeight - 50, currentPos.y + moveY));
-
-      // Always return a new object
-      return { x: newX, y: newY };
-    });
-
-    setShapePositions(newPositions);
-  }, [gyroData, isGyroAvailable, elements, dragStates, shapePositions]);
 
   // Notify parent when animation is loaded
   useEffect(() => {
@@ -591,7 +481,7 @@ export default function BasicShapesAnimation({
 
   return (
     <View style={styles.animationContainer}>
-      {/* Animated gradient background */}
+      {/* Gradient background - simple and stable */}
       <LinearGradient
         colors={COLOR_PALETTES[backgroundGradient] as [string, string, ...string[]]}
         style={{
