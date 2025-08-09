@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "my-calm-baby",
+    "name": "CalmBaby – White Noise",
     "slug": "my-calm-baby",
     "version": "1.2.1",
     "orientation": "portrait",
@@ -15,20 +15,7 @@
         "ITSAppUsesNonExemptEncryption": false
       }
     },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icons/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "package": "com.susv.mycalmbaby",
-      "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
-      ]
-    },
+
     "plugins": [
       "expo-router",
       [
