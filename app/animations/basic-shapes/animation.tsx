@@ -189,16 +189,14 @@ export default function BasicShapesAnimation({
     }
     
     setParticles(prev => [...prev, ...newParticles]);
-    if (Platform.OS === 'ios') {
-      Vibration.vibrate(30);
-    }
+    // Removed haptic feedback from particle explosion
   }, []);
 
   // Play sound effect
   const playSound = useCallback(async (frequency: number) => {
     try {
-      // Simple haptic feedback as audio placeholder
-      Vibration.vibrate(10);
+      // Sound effect without haptic feedback
+      // Removed vibration to reduce haptic feedback
     } catch (error) {
       console.error('Error playing sound:', error);
     }
@@ -398,7 +396,10 @@ export default function BasicShapesAnimation({
       const colors = COLOR_PALETTES[shapeIndex % COLOR_PALETTES.length];
       createParticleExplosion(pos.x, pos.y, colors[shapeStates[shapeIndex]?.colorIndex || 0]);
       
-      Vibration.vibrate(10);
+      // Minimal haptic feedback only on touch
+      if (Platform.OS === 'ios') {
+        Vibration.vibrate(5); // Reduced from 10ms to 5ms for minimal feedback
+      }
     }
   };
 
