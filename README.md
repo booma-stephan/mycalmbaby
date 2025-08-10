@@ -9,7 +9,7 @@ A soothing, interactive baby app built with React Native and Expo. Features gent
 - **Calming Visuals**: Soft color palettes that change slowly (1-minute cycles)
 - **Particle Effects**: Beautiful explosion effects on interactions
 - **Audio Feedback**: Musical notes on shape interactions
-- **Haptic Feedback**: Gentle vibrations for tactile response
+- **Minimal Haptic Feedback**: Ultra-gentle 5ms vibrations only on shape touch (iOS only)
 - **Baby-Friendly Physics**: Gentle floating motion instead of harsh falling
 
 ## 🚀 Getting Started
@@ -44,6 +44,34 @@ A soothing, interactive baby app built with React Native and Expo. Features gent
 
 ## 📱 Release Management
 
+### Git Workflow
+
+This project uses a **production-first** Git workflow aligned with EAS channels:
+
+- **`main`** → Development and feature work
+- **`production`** → Production releases (matches EAS production channel)
+
+#### Development Workflow
+
+```bash
+# 1. Work on features in main branch
+git checkout main
+git pull origin main
+# ... make changes ...
+git add .
+git commit -m "feat: new functionality"
+git push origin main
+
+# 2. Release to production
+git checkout production
+git pull origin production
+git merge main
+git push origin production
+
+# 3. Deploy via EAS
+npx eas update --branch production --auto
+```
+
 ### App Store Releases (Native Builds)
 
 Use this for major versions, native code changes, or new app store submissions.
@@ -59,6 +87,9 @@ Use this for major versions, native code changes, or new app store submissions.
 #### Step 2: Build for iOS App Store
 
 ```bash
+# Ensure you're on production branch
+git checkout production
+
 # Build production binary
 eas build --platform ios --profile production
 
@@ -109,6 +140,9 @@ eas update --branch preview --message "v1.2.1: Testing new features"
 #### Step 3: Publish Production Update
 
 ```bash
+# Ensure you're on production branch
+git checkout production
+
 # Publish to production channel
 eas update --branch production --message "v1.2.1: Gentler animations and improved UX"
 
@@ -191,6 +225,7 @@ app/
 - **Soothing Colors**: 1-minute background cycles
 - **Particle Effects**: Explosion animations on interactions
 - **Audio Feedback**: Musical notes on shape interactions
+- **Minimal Haptic**: 5ms vibration only on direct shape touch (no collision haptics)
 
 ## 📱 App Configuration
 
@@ -246,4 +281,6 @@ eas build:list --platform ios --limit 5
 
 **Current Version**: 1.2.1  
 **Last Updated**: August 2025  
-**Platform**: iOS Only
+**Platform**: iOS Only  
+**Git Workflow**: Production-first (main → production)  
+**EAS Channel**: production
