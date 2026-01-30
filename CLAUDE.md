@@ -98,6 +98,8 @@ feature/* ──PR──► develop ──PR──► main ──manual──►
 ### GitHub Actions (`.github/workflows/`)
 - `pr-check.yml` - Lint, typecheck, Expo export validation on PRs
 - `development-build.yml` - Builds dev client on `develop` push
+- `preview-build.yml` - Builds preview on `main` push
+- `production-release.yml` - Manual trigger for production build & App Store submission
 
 ## Build & Deployment
 
@@ -117,6 +119,12 @@ npx expo start --dev-client
 Triggered automatically on push to `main` for internal testing.
 
 ### Production Release (manual)
+**Option 1: GitHub Actions UI (recommended)**
+1. Update version in `package.json` and `app.json`
+2. Go to Actions → "Production Release" → Run workflow
+3. Choose whether to auto-submit to App Store
+
+**Option 2: CLI**
 ```bash
 # 1. Update version in package.json and app.json
 # 2. Build for production
