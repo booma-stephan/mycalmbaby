@@ -1,4 +1,5 @@
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
+import { debugError } from './debug';
 
 const FADE_DURATION = 2000; // 2 seconds for crossfade
 
@@ -37,7 +38,7 @@ class WhiteNoiseGenerator {
       this.isInitialized = true;
       return true;
     } catch (error) {
-      console.error('Failed to initialize audio:', error);
+      debugError('Failed to initialize audio:', error);
       return false;
     }
   }
@@ -50,7 +51,7 @@ class WhiteNoiseGenerator {
       );
       return sound;
     } catch (error) {
-      console.error('Failed to create sound instance:', error);
+      debugError('Failed to create sound instance:', error);
       return null;
     }
   }

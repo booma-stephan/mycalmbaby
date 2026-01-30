@@ -21,6 +21,7 @@ import AnimationManager, {
   AnimationElement,
 } from './utils/AnimationManager';
 import { debug } from './utils/debug';
+import AudioManager from './utils/AudioManager';
 import {
   SWIPE_THRESHOLD,
   FEEDBACK_DURATION,
@@ -55,7 +56,7 @@ export default function AnimationScreen() {
   const [unlockSequence, setUnlockSequence] = useState<Corner[]>([]);
   const [currentSequence, setCurrentSequence] = useState<Corner[]>([]);
   const [wrongSequenceIndicator, setWrongSequenceIndicator] = useState(false);
-  const [sleepTimer, setSleepTimer] = useState<number>(30);
+  // sleepTimer is loaded directly in init() to avoid stale state issues
   // We no longer need isPlaying state as we're using AudioManager
   const [currentAnimation, setCurrentAnimation] = useState<
     AnimationConfig | undefined
@@ -149,7 +150,8 @@ export default function AnimationScreen() {
       }
     };
 
-    const loadSettings = async () => {
+    const loadSettings = async (): Promise<{ timerMinutes: number }> => {
+      let timerMinutes = 30; // Default value
       try {
         const savedSequence = await AsyncStorage.getItem('unlockSequence');
         const savedTimer = await AsyncStorage.getItem('sleepTimer');
@@ -160,8 +162,7 @@ export default function AnimationScreen() {
         // Note: whiteNoiseEnabled is handled directly from AsyncStorage in init()
         // to avoid stale state issues
         if (savedTimer) {
-          const timer = parseInt(savedTimer);
-          setSleepTimer(timer);
+          timerMinutes = parseInt(savedTimer);
         }
 
         // Load the selected animation
@@ -178,6 +179,7 @@ export default function AnimationScreen() {
       } catch (error) {
         debug('Failed to load settings:', error);
       }
+      return { timerMinutes };
     };
 
     const setupAnimations = async () => {
@@ -300,7 +302,7 @@ export default function AnimationScreen() {
 
     const init = async () => {
       await initializeScreen();
-      await loadSettings();
+      const { timerMinutes } = await loadSettings();
       setupAnimations();
 
       // We should NOT use the local whiteNoiseEnabled state variable at all
@@ -308,27 +310,23 @@ export default function AnimationScreen() {
       const savedWhiteNoise = await AsyncStorage.getItem('whiteNoiseEnabled');
       const shouldPlayWhiteNoise = savedWhiteNoise === 'true';
 
-      // Get the AudioManager instance
-      const audioManager = await import('./utils/AudioManager').then(
-        (m) => m.default
-      );
-
       // Ensure white noise state matches the saved toggle state
-      if (shouldPlayWhiteNoise && !audioManager.isWhiteNoisePlaying()) {
+      if (shouldPlayWhiteNoise && !AudioManager.isWhiteNoisePlaying()) {
         // Toggle is ON but white noise is not playing - start it
         debug('Starting white noise based on saved toggle state');
-        await audioManager.play();
-      } else if (!shouldPlayWhiteNoise && audioManager.isWhiteNoisePlaying()) {
+        await AudioManager.play();
+      } else if (!shouldPlayWhiteNoise && AudioManager.isWhiteNoisePlaying()) {
         // Toggle is OFF but white noise is playing - stop it
         debug('Stopping white noise based on saved toggle state');
-        await audioManager.stop();
+        await AudioManager.stop();
       } else {
         debug('White noise state already matches saved toggle state');
       }
 
       // Start sleep timer if enabled and not already started
-      if (sleepTimer > 0 && !sequenceTimeoutRef.current) {
-        startSleepTimer(sleepTimer);
+      // Use timerMinutes directly from loadSettings to avoid stale state
+      if (timerMinutes > 0 && !sequenceTimeoutRef.current) {
+        startSleepTimer(timerMinutes);
       }
     };
 

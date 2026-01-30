@@ -1,4 +1,5 @@
 import WhiteNoiseGenerator from './WhiteNoiseGenerator';
+import { debugError } from './debug';
 
 /**
  * AudioManager provides a centralized way to control audio playback
@@ -36,7 +37,7 @@ class AudioManager {
       this.isInitialized = success;
       return success;
     } catch (error) {
-      console.error('Failed to initialize AudioManager:', error);
+      debugError('Failed to initialize AudioManager:', error);
       return false;
     }
   }
@@ -60,7 +61,7 @@ class AudioManager {
       }
       return true;
     } catch (error) {
-      console.error('Failed to start white noise:', error);
+      debugError('Failed to start white noise:', error);
       return false;
     }
   }
@@ -77,7 +78,7 @@ class AudioManager {
       }
       return true;
     } catch (error) {
-      console.error('Failed to stop white noise:', error);
+      debugError('Failed to stop white noise:', error);
       this.isPlaying = false; // Ensure state is updated even on error
       return false;
     }
@@ -90,7 +91,7 @@ class AudioManager {
     try {
       await WhiteNoiseGenerator.setVolume(volume);
     } catch (error) {
-      console.error('Failed to set volume:', error);
+      debugError('Failed to set volume:', error);
     }
   }
 
@@ -124,7 +125,7 @@ class AudioManager {
       await WhiteNoiseGenerator.cleanup();
       this.isInitialized = false;
     } catch (error) {
-      console.error('Failed to cleanup AudioManager:', error);
+      debugError('Failed to cleanup AudioManager:', error);
     }
   }
 }

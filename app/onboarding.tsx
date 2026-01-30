@@ -17,6 +17,7 @@ import {
   SectionHeader,
 } from './components/UIComponents';
 import { designTokens } from './styles/designTokens';
+import { debugError } from './utils/debug';
 
 type OnboardingStep = 'welcome' | 'explain-lock' | 'setup-sequence';
 type Corner = 'TL' | 'TR' | 'BL' | 'BR';
@@ -103,7 +104,7 @@ export default function OnboardingScreen() {
         // Navigate to main menu
         router.replace('/main-menu');
       } catch (error) {
-        console.error('Failed to save onboarding data:', error);
+        debugError('Failed to save onboarding data:', error);
         Alert.alert('Error', 'Failed to save unlock sequence. Please try again.');
       }
     }

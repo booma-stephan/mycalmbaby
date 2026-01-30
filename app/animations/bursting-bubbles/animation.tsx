@@ -28,6 +28,8 @@ interface Bubble {
   id: string;
   x: Animated.Value;
   y: Animated.Value;
+  currentX: number; // Track current position without using private API
+  currentY: number;
   size: number;
   opacity: Animated.Value;
   scale: Animated.Value;
@@ -80,11 +82,13 @@ const SpaceBubblesAnimation = React.memo(({
     const { width, height } = containerDims;
     const posX = x !== undefined ? x : Math.random() * width;
     const posY = y !== undefined ? y : Math.random() * height;
-    
+
     return {
       id: generateId(),
       x: new Animated.Value(posX),
       y: new Animated.Value(posY),
+      currentX: posX, // Track position without using private API
+      currentY: posY,
       size: bubbleSize,
       opacity: new Animated.Value(0.7 + Math.random() * 0.3),
       scale: new Animated.Value(0.8 + Math.random() * 0.4),
@@ -92,16 +96,6 @@ const SpaceBubblesAnimation = React.memo(({
       highlight: Math.random() > 0.5
     };
   }, [containerDims, generateId]);
-  
-  // Get current position of an animated value
-  // Helper to synchronously read the current numeric value of an Animated.Value
-  // Using the undocumented __getValue() is OK for internal calculations here.
-  // We avoid addListener, which was always returning 0 immediately and caused
-  // positions to collapse to the origin.
-  const getAnimatedValue = useCallback((animValue: Animated.Value): number => {
-    // @ts-ignore – __getValue is private but safe in JS runtime
-    return (animValue as Record<string, unknown>).__getValue() as number;
-  }, []);
 
   // Create a burst of dots at a specific position
   const createDotBurst = useCallback((x: number, y: number) => {
@@ -253,53 +247,47 @@ const SpaceBubblesAnimation = React.memo(({
   }, [createBubble, createBurstEffect]);
   
   // Handle touch on the animation area
-  const handleTouch = useCallback((event: any) => {
+  const handleTouch = useCallback((event: { nativeEvent: { pageX: number; pageY: number } }) => {
     const { pageX, pageY } = event.nativeEvent;
     // Notify parent (unlock logic expects absolute coordinates)
     onBackgroundTap?.(pageX, pageY);
     const x = pageX - containerOffset.current.x;
     const y = pageY - containerOffset.current.y;
-    
-    // Check if a bubble was touched
+
+    // Check if a bubble was touched using tracked positions
     const touchedBubble = bubbles.find(bubble => {
-      const bubbleX = getAnimatedValue(bubble.x);
-      const bubbleY = getAnimatedValue(bubble.y);
-      const dx = x - bubbleX;
-      const dy = y - bubbleY;
+      const dx = x - bubble.currentX;
+      const dy = y - bubble.currentY;
       const distance = Math.sqrt(dx * dx + dy * dy);
-      
+
       return distance <= bubble.size / 2;
     });
-    
+
     if (touchedBubble) {
       splitBubble(touchedBubble, x, y);
     } else {
       createDotBurst(x, y);
     }
-  }, [bubbles, splitBubble, createDotBurst, getAnimatedValue, onBackgroundTap]);
+  }, [bubbles, splitBubble, createDotBurst, onBackgroundTap]);
   
   // Animation function for bubbles - smoother floating motion
   const animateBubbles = useCallback(() => {
-    bubbles.forEach(bubble => {
-      // Get current position
-      const currentX = getAnimatedValue(bubble.x);
-      const currentY = getAnimatedValue(bubble.y);
-      
+    setBubbles(prevBubbles => prevBubbles.map(bubble => {
       // Calculate new position with natural floating movement
       // Add some sine wave motion for more natural floating
       const time = Date.now() / 1000;
       const uniqueOffset = parseInt(bubble.id.substring(0, 2), 36) / 36; // Use ID for unique wave pattern
       const sineOffset = Math.sin((time + uniqueOffset) * 2) * 1.5;
-      
-      const newX = currentX + sineOffset + (Math.random() * 2 - 1) * BUBBLE_SPEED * 2;
-      const newY = currentY - BUBBLE_SPEED * (2 + Math.random()); // Varying upward speed
-      
+
+      const newX = bubble.currentX + sineOffset + (Math.random() * 2 - 1) * BUBBLE_SPEED * 2;
+      const newY = bubble.currentY - BUBBLE_SPEED * (2 + Math.random()); // Varying upward speed
+
       // Wrap around if bubble goes off screen
       const { width, height } = containerDims;
       const wrappedY = newY < -bubble.size ? height + bubble.size : newY;
-      const wrappedX = newX < -bubble.size ? width + bubble.size : 
+      const wrappedX = newX < -bubble.size ? width + bubble.size :
                       newX > width + bubble.size ? -bubble.size : newX;
-      
+
       // Animate to new position with shorter duration for smoother movement
       Animated.timing(bubble.y, {
         toValue: wrappedY,
@@ -307,14 +295,14 @@ const SpaceBubblesAnimation = React.memo(({
         useNativeDriver: true,
         easing: Easing.linear
       }).start();
-      
+
       Animated.timing(bubble.x, {
         toValue: wrappedX,
         duration: 200,
         useNativeDriver: true,
         easing: Easing.linear
       }).start();
-      
+
       // Only start new opacity/scale animations if not already animating
       // This prevents too many animations from stacking up
       if (Math.random() < 0.05) { // Occasionally update the pulsing
@@ -331,7 +319,7 @@ const SpaceBubblesAnimation = React.memo(({
             useNativeDriver: true
           })
         ]).start();
-        
+
         Animated.sequence([
           Animated.timing(bubble.scale, {
             toValue: 0.8 + Math.random() * 0.3,
@@ -345,8 +333,15 @@ const SpaceBubblesAnimation = React.memo(({
           })
         ]).start();
       }
-    });
-  }, [bubbles, containerDims, getAnimatedValue]);
+
+      // Return updated bubble with new tracked positions
+      return {
+        ...bubble,
+        currentX: wrappedX,
+        currentY: wrappedY
+      };
+    }));
+  }, [containerDims]);
 
   // Initialize animation
   useEffect(() => {

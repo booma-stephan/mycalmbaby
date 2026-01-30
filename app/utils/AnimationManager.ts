@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { debug, debugWarn, debugError } from './debug';
 
 export interface AnimationConfig {
   id: string;
@@ -86,7 +87,7 @@ class AnimationManager {
           return null;
       }
     } catch (error) {
-      console.error(`Error loading animation config for ${folder}:`, error);
+      debugError(`Error loading animation config for ${folder}:`, error);
       return null;
     }
   }
@@ -110,7 +111,7 @@ class AnimationManager {
           return undefined;
       }
     } catch (error) {
-      console.error(`Error loading thumbnail for ${folder}:`, error);
+      debugError(`Error loading thumbnail for ${folder}:`, error);
       return undefined;
     }
   }
@@ -136,7 +137,7 @@ class AnimationManager {
         await AsyncStorage.setItem('selectedAnimation', this.selectedAnimationId);
       }
     } catch (error) {
-      console.error('Failed to initialize AnimationManager:', error);
+      debugError('Failed to initialize AnimationManager:', error);
     }
   }
 
@@ -156,7 +157,7 @@ class AnimationManager {
         await AsyncStorage.setItem('selectedAnimation', animationId);
       }
     } catch (error) {
-      console.error('Failed to select animation:', error);
+      debugError('Failed to select animation:', error);
     }
   }
 
@@ -179,19 +180,19 @@ class AnimationManager {
           }
         } catch {
           // Intentionally empty catch block - we just want to skip invalid folders
-          console.log(
+          debug(
             `Folder ${folder} does not contain a valid animation.json file`
           );
         }
       }
 
-      console.log(
+      debug(
         `Found ${validFolders.length} valid animation folders:`,
         validFolders
       );
       return validFolders;
     } catch (error) {
-      console.error('Error validating animation folders:', error);
+      debugError('Error validating animation folders:', error);
       return [];
     }
   }
@@ -208,7 +209,7 @@ class AnimationManager {
       const validFolders = await this.validateAnimationFolders();
 
       if (validFolders.length === 0) {
-        console.warn(
+        debugWarn(
           'No valid animation folders found, using fallback animations'
         );
         this.animations = [...FALLBACK_ANIMATIONS];
@@ -230,12 +231,12 @@ class AnimationManager {
             };
 
             this.animations.push(animationConfig);
-            console.log(
+            debug(
               `Loaded animation: ${animationConfig.name} (${animationConfig.id})`
             );
           }
         } catch (error) {
-          console.error(
+          debugError(
             `Error loading animation from folder ${folder}:`,
             error
           );
@@ -244,15 +245,15 @@ class AnimationManager {
 
       // If no animations were loaded, use fallback animations
       if (this.animations.length === 0) {
-        console.warn(
+        debugWarn(
           'Failed to load any animations, using fallback animations'
         );
         this.animations = [...FALLBACK_ANIMATIONS];
       }
 
-      console.log(`Total animations loaded: ${this.animations.length}`);
+      debug(`Total animations loaded: ${this.animations.length}`);
     } catch (error) {
-      console.error('Error scanning for animations:', error);
+      debugError('Error scanning for animations:', error);
       // Use fallback animations in case of error
       this.animations = [...FALLBACK_ANIMATIONS];
     }

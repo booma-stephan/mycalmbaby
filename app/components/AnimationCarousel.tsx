@@ -9,6 +9,8 @@ import {
   Dimensions,
   Animated,
   LayoutChangeEvent,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AnimationConfig } from '../utils/AnimationManager';
@@ -70,7 +72,7 @@ const AnimationCarousel: React.FC<AnimationCarouselProps> = ({
     { useNativeDriver: false }
   );
 
-  const handleMomentumScrollEnd = (event: any) => {
+  const handleMomentumScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const newIndex = Math.round(event.nativeEvent.contentOffset.x / (CARD_WIDTH + CARD_SPACING));
     if (newIndex >= 0 && newIndex < animations.length) {
       setCurrentIndex(newIndex);

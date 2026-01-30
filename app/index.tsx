@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { debug } from './utils/debug';
 
 export default function IndexScreen() {
   const [isLoading, setIsLoading] = useState(true);
@@ -12,12 +13,11 @@ export default function IndexScreen() {
 
   const checkOnboardingStatus = async () => {
     try {
-      // Add a small delay to ensure AsyncStorage is ready
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      const hasCompletedOnboarding = await AsyncStorage.getItem('hasCompletedOnboarding');
-      const unlockSequence = await AsyncStorage.getItem('unlockSequence');
-      
+      // Use multiGet for atomic read of related values
+      const results = await AsyncStorage.multiGet(['hasCompletedOnboarding', 'unlockSequence']);
+      const hasCompletedOnboarding = results[0][1];
+      const unlockSequence = results[1][1];
+
       if (hasCompletedOnboarding === 'true') {
         // Check if unlock sequence exists
         if (!unlockSequence) {
@@ -32,20 +32,8 @@ export default function IndexScreen() {
         router.replace('/onboarding');
       }
     } catch (error) {
-      console.error('Failed to check onboarding status:', error);
-      // Try one more time after a delay before defaulting to onboarding
-      try {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const retryCheck = await AsyncStorage.getItem('hasCompletedOnboarding');
-        if (retryCheck === 'true') {
-          router.replace('/main-menu');
-          return;
-        }
-      } catch (retryError) {
-        console.error('Retry failed:', retryError);
-      }
-      
-      // Default to onboarding if all attempts fail
+      debug('Failed to check onboarding status:', error);
+      // Default to onboarding if storage read fails
       router.replace('/onboarding');
     } finally {
       setIsLoading(false);

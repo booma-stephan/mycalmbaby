@@ -74,8 +74,14 @@ export default function MainMenuScreen() {
 
   const handleSelectAnimation = async (animationId: string) => {
     setSelectedAnimationId(animationId);
-    const animationManager = AnimationManager.getInstance();
-    await animationManager.selectAnimation(animationId);
+    try {
+      const animationManager = AnimationManager.getInstance();
+      await animationManager.selectAnimation(animationId);
+    } catch (error) {
+      debug('Failed to select animation:', error);
+      // Revert selection on error
+      setSelectedAnimationId(selectedAnimationId);
+    }
   };
 
   const handleSleepTimerChange = async (timer: SleepTimer) => {

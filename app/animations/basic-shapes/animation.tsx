@@ -3,11 +3,14 @@ import { Animated, View, Dimensions, Vibration, Platform } from 'react-native';
 
 import {
   PanGestureHandler,
+  PanGestureHandlerGestureEvent,
   State,
   TapGestureHandler,
+  TapGestureHandlerStateChangeEvent,
 } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AnimationElement } from '../../utils/AnimationManager';
+import { debug, debugError } from '../../utils/debug';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -112,11 +115,25 @@ function BasicShapesAnimation({
   const [particles, setParticles] = useState<Particle[]>([]);
   const [backgroundGradient, setBackgroundGradient] = useState(0);
 
-
-  // Animation frame reference for future use
-  // const animationFrame = useRef<number | null>(null);
-  const physicsTimer = useRef<NodeJS.Timeout | null>(null);
+  // Refs to hold current state values for physics loop (avoids stale closures)
+  const dragStatesRef = useRef<DragState[]>([]);
+  const shapePhysicsRef = useRef<ShapePhysics[]>([]);
+  const shapePositionsRef = useRef<ShapePosition[]>([]);
+  const animationFrameRef = useRef<number | null>(null);
   const particleCounter = useRef<number>(0);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    dragStatesRef.current = dragStates;
+  }, [dragStates]);
+
+  useEffect(() => {
+    shapePhysicsRef.current = shapePhysics;
+  }, [shapePhysics]);
+
+  useEffect(() => {
+    shapePositionsRef.current = shapePositions;
+  }, [shapePositions]);
 
   // Initialize shape positions, physics, and states
   useEffect(() => {
@@ -156,7 +173,7 @@ function BasicShapesAnimation({
     setShapePhysics(initialPhysics);
     setShapeStates(initialStates);
     
-    console.log('🎯 Initialized enhanced shapes with physics');
+    debug('🎯 Initialized enhanced shapes with physics');
   }, [elements]);
 
   // Create particle explosion effect
@@ -198,7 +215,7 @@ function BasicShapesAnimation({
       // Sound effect without haptic feedback
       // Removed vibration to reduce haptic feedback
     } catch (error) {
-      console.error('Error playing sound:', error);
+      debugError('Error playing sound:', error);
     }
   }, []);
 
@@ -223,28 +240,43 @@ function BasicShapesAnimation({
     return () => clearInterval(particleTimer);
   }, []);
 
-  // Physics simulation loop
+  // Physics simulation loop using requestAnimationFrame for smooth 120Hz support
   useEffect(() => {
-    const runPhysics = () => {
+    let lastTime = performance.now();
+
+    const runPhysics = (currentTime: number) => {
+      // Calculate delta time for frame-rate independent physics
+      const deltaTime = Math.min((currentTime - lastTime) / 16.67, 2); // Normalize to 60fps, cap at 2x
+      lastTime = currentTime;
+
+      // Read current values from refs (avoids stale closures)
+      const currentDragStates = dragStatesRef.current;
+      const currentPhysics = shapePhysicsRef.current;
+
+      if (currentPhysics.length === 0) {
+        animationFrameRef.current = requestAnimationFrame(runPhysics);
+        return;
+      }
+
       setShapePositions(prev => {
         // Create completely new arrays to avoid mutations
         const newPositions = prev.map(pos => ({ ...pos }));
-        const physics = shapePhysics.map(p => ({ ...p }));
-        
+        const physics = currentPhysics.map(p => ({ ...p }));
+
         // Update positions based on physics
         for (let i = 0; i < newPositions.length; i++) {
-          if (dragStates[i]?.isDragging) continue;
-          
-          // Apply velocity (create new position object)
-          const newX = newPositions[i].x + physics[i].velocityX;
-          const newY = newPositions[i].y + physics[i].velocityY;
-          
+          if (currentDragStates[i]?.isDragging) continue;
+
+          // Apply velocity scaled by delta time
+          const newX = newPositions[i].x + physics[i].velocityX * deltaTime;
+          const newY = newPositions[i].y + physics[i].velocityY * deltaTime;
+
           // Apply gentle gravity (much softer)
           physics[i] = {
             ...physics[i],
-            velocityY: physics[i].velocityY + 0.05
+            velocityY: physics[i].velocityY + 0.05 * deltaTime
           };
-          
+
           // Gentle bouncing with soft rebounds
           if (newX <= 50 || newX >= screenWidth - 50) {
             physics[i] = {
@@ -269,23 +301,24 @@ function BasicShapesAnimation({
           } else {
             newPositions[i] = { x: newX, y: newY };
           }
-          
+
           // Apply gentle air resistance for floating effect
+          const airResistance = Math.pow(0.98, deltaTime);
           physics[i] = {
             ...physics[i],
-            velocityX: physics[i].velocityX * 0.98,
-            velocityY: physics[i].velocityY * 0.98
+            velocityX: physics[i].velocityX * airResistance,
+            velocityY: physics[i].velocityY * airResistance
           };
-          
+
           // Add gentle floating motion
           const time = Date.now() * 0.001; // Convert to seconds
           const floatOffset = Math.sin(time + i) * 0.5; // Gentle up/down motion
           physics[i] = {
             ...physics[i],
-            velocityY: physics[i].velocityY + floatOffset * 0.02
+            velocityY: physics[i].velocityY + floatOffset * 0.02 * deltaTime
           };
         }
-        
+
         // Check collisions
         for (let i = 0; i < newPositions.length; i++) {
           for (let j = i + 1; j < newPositions.length; j++) {
@@ -293,15 +326,15 @@ function BasicShapesAnimation({
             const dy = newPositions[i].y - newPositions[j].y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             const minDistance = 80;
-            
+
             if (distance < minDistance && distance > 0) {
               // Collision detected!
               const overlap = minDistance - distance;
-              
+
               // Separate shapes (create new position objects)
               const separationX = (dx / distance) * overlap * 0.5;
               const separationY = (dy / distance) * overlap * 0.5;
-              
+
               newPositions[i] = {
                 x: newPositions[i].x + separationX,
                 y: newPositions[i].y + separationY
@@ -310,7 +343,7 @@ function BasicShapesAnimation({
                 x: newPositions[j].x - separationX,
                 y: newPositions[j].y - separationY
               };
-              
+
               // Exchange velocities (elastic collision) - create new physics objects
               const tempVx = physics[i].velocityX;
               const tempVy = physics[i].velocityY;
@@ -324,7 +357,7 @@ function BasicShapesAnimation({
                 velocityX: tempVx * 0.8,
                 velocityY: tempVy * 0.8
               };
-              
+
               // Create particle effect at collision point
               const collisionX = (newPositions[i].x + newPositions[j].x) / 2;
               const collisionY = (newPositions[i].y + newPositions[j].y) / 2;
@@ -333,20 +366,24 @@ function BasicShapesAnimation({
             }
           }
         }
-        
+
         setShapePhysics(physics);
         return newPositions;
       });
+
+      // Schedule next frame
+      animationFrameRef.current = requestAnimationFrame(runPhysics);
     };
-    
-    physicsTimer.current = setInterval(runPhysics, 16) as any; // 60 FPS
-    
+
+    // Start the animation loop
+    animationFrameRef.current = requestAnimationFrame(runPhysics);
+
     return () => {
-      if (physicsTimer.current) {
-        clearInterval(physicsTimer.current);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [dragStates, shapePhysics, playSound, createParticleExplosion]);
+  }, [playSound, createParticleExplosion]); // Removed dragStates and shapePhysics - now using refs
 
 
 
@@ -360,9 +397,9 @@ function BasicShapesAnimation({
   }, []);
 
   // Handle tap gesture for shape interaction
-  const handleTap = (shapeIndex: number) => (event: any) => {
+  const handleTap = (shapeIndex: number) => (event: TapGestureHandlerStateChangeEvent) => {
     if (event.nativeEvent.state === State.END) {
-      console.log('👆 Shape tapped:', shapeIndex);
+      debug('👆 Shape tapped:', shapeIndex);
       
       // Play sound
       playSound(MUSICAL_NOTES[shapeIndex % MUSICAL_NOTES.length]);
@@ -404,13 +441,13 @@ function BasicShapesAnimation({
   };
 
   // Handle drag gesture for individual shapes
-  const handleDrag = (shapeIndex: number) => (event: any) => {
+  const handleDrag = (shapeIndex: number) => (event: PanGestureHandlerGestureEvent) => {
     const { nativeEvent } = event;
     const { state, translationX, translationY, absoluteX, absoluteY } = nativeEvent;
 
     switch (state) {
       case State.BEGAN:
-        console.log(`👆 Started dragging shape ${shapeIndex}`);
+        debug(`👆 Started dragging shape ${shapeIndex}`);
         
         setDragStates(prev => prev.map((dragState, index) => 
           index === shapeIndex 
@@ -438,7 +475,7 @@ function BasicShapesAnimation({
       case State.END:
       case State.CANCELLED:
       case State.FAILED:
-        console.log(`👋 Finished dragging shape ${shapeIndex}`);
+        debug(`👋 Finished dragging shape ${shapeIndex}`);
         if (state === State.END && dragStates[shapeIndex]) {
           // Gentler throw velocity for calmer physics
           const velocityX = (translationX * 0.3) / 10; // Reduced throw strength
