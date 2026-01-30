@@ -1,0 +1,12 @@
+{
+  "name": "expo-guided-access",
+  "version": "1.0.0",
+  "main": "index",
+  "types": "index.ts",
+  "description": "Expo module to detect iOS Guided Access status",
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

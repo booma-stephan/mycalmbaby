@@ -113,6 +113,10 @@ export default function MainMenuScreen() {
     router.push('/onboarding?step=setup-sequence');
   };
 
+  const handleKioskSetup = () => {
+    router.push('/kiosk-setup');
+  };
+
   const renderSleepTimerSelector = () => (
     <Card style={styles.section}>
       <View style={styles.toggleContainer}>
@@ -172,6 +176,20 @@ export default function MainMenuScreen() {
           selectedAnimation={selectedAnimationId}
           onSelectAnimation={handleSelectAnimation}
         />
+
+        {/* Kiosk Mode Card */}
+        <Card style={styles.section}>
+          <TouchableOpacity style={styles.kioskButton} onPress={handleKioskSetup}>
+            <View style={styles.kioskIconContainer}>
+              <Ionicons name="shield-checkmark" size={24} color={designTokens.colors.primary} />
+            </View>
+            <View style={styles.kioskTextContainer}>
+              <Text style={styles.kioskTitle}>Kiosk Mode</Text>
+              <Text style={styles.kioskSubtitle}>Lock app using iOS Guided Access</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={designTokens.colors.darkGray} />
+          </TouchableOpacity>
+        </Card>
 
         <View style={styles.bottomActions}>
           <TouchableOpacity style={styles.textButton} onPress={handleChangeUnlock}>
@@ -340,5 +358,31 @@ const styles = StyleSheet.create({
     fontSize: designTokens.typography.sizes.base,
     color: designTokens.colors.primary,
     fontWeight: designTokens.typography.weights.medium,
-  }
+  },
+  kioskButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  kioskIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: designTokens.colors.aliceBlue,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: designTokens.spacing.md,
+  },
+  kioskTextContainer: {
+    flex: 1,
+  },
+  kioskTitle: {
+    fontSize: designTokens.typography.sizes.base,
+    fontWeight: designTokens.typography.weights.semibold,
+    color: designTokens.colors.charcoal,
+  },
+  kioskSubtitle: {
+    fontSize: designTokens.typography.sizes.sm,
+    color: designTokens.colors.darkGray,
+    marginTop: 2,
+  },
 });
