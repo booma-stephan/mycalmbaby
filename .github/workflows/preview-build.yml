@@ -1,8 +1,25 @@
 name: Preview Build
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build'
+        required: true
+        default: 'ios'
+        type: choice
+        options:
+          - ios
+          - android
+          - all
+
+# Note: Automatic builds on push are disabled until EAS credentials
+# are configured for internal distribution. To set up credentials:
+#   1. Run `eas credentials` locally and configure ad-hoc provisioning
+#   2. Then re-enable the push trigger below:
+# on:
+#   push:
+#     branches: [main]
 
 jobs:
   preview:
@@ -29,7 +46,13 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Build preview
-        run: eas build --platform ios --profile preview --non-interactive
+        run: |
+          PLATFORM="${{ github.event.inputs.platform || 'ios' }}"
+          if [ "$PLATFORM" = "all" ]; then
+            eas build --platform all --profile preview --non-interactive
+          else
+            eas build --platform $PLATFORM --profile preview --non-interactive
+          fi
 
       - name: Get build URL
         id: build-url
