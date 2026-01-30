@@ -1,0 +1,72 @@
+name: Production Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      submit:
+        description: 'Submit to App Store after build'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  production-build:
+    name: Build for App Store
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build for production
+        run: eas build --platform ios --profile production --non-interactive
+
+      - name: Get build info
+        id: build-info
+        run: |
+          BUILD_INFO=$(eas build:list --platform ios --limit 1 --non-interactive --json | jq -r '.[0]')
+          BUILD_URL=$(echo $BUILD_INFO | jq -r '.buildDetailsPageUrl')
+          BUILD_ID=$(echo $BUILD_INFO | jq -r '.id')
+          echo "url=$BUILD_URL" >> $GITHUB_OUTPUT
+          echo "id=$BUILD_ID" >> $GITHUB_OUTPUT
+
+      - name: Submit to App Store
+        if: ${{ inputs.submit }}
+        run: eas submit --platform ios --profile production --non-interactive --latest
+
+      - name: Create build summary
+        run: |
+          echo "## Production Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build ID:** ${{ steps.build-info.outputs.id }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build URL:** ${{ steps.build-info.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.submit }}" == "true" ]; then
+            echo "**Status:** Submitted to App Store Connect" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Status:** Build complete (not submitted)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "To submit manually: \`eas submit --platform ios --profile production --latest\`" >> $GITHUB_STEP_SUMMARY
+          fi

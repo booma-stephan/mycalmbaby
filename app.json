@@ -40,7 +40,7 @@
     },
     "owner": "thestephse",
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "fingerprint"
     },
     "updates": {
       "url": "https://u.expo.dev/c4a55db1-191f-4c15-8004-142ebae2976d"

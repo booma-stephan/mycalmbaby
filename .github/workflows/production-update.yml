@@ -1,0 +1,59 @@
+name: Production OTA Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Update message (shown in Expo dashboard)'
+        required: true
+        type: string
+
+jobs:
+  ota-update:
+    name: Push OTA Update
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Push OTA update to production
+        run: eas update --branch production --message "${{ inputs.message }}" --non-interactive
+
+      - name: Get update info
+        id: update-info
+        run: |
+          UPDATE_INFO=$(eas update:list --branch production --limit 1 --non-interactive --json | jq -r '.[0]')
+          UPDATE_ID=$(echo $UPDATE_INFO | jq -r '.id')
+          echo "id=$UPDATE_ID" >> $GITHUB_OUTPUT
+
+      - name: Create release summary
+        run: |
+          echo "## Production OTA Update Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Message:** ${{ inputs.message }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Update ID:** ${{ steps.update-info.outputs.id }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "View in [Expo Dashboard](https://expo.dev/accounts/thestephse/projects/my-calm-baby/updates)" >> $GITHUB_STEP_SUMMARY
