@@ -81,22 +81,25 @@ export default function OnboardingScreen() {
   const confirmSequence = async () => {
     if (unlockSequence.length === 4) {
       try {
-        // Save the unlock sequence
-        await AsyncStorage.setItem('unlockSequence', JSON.stringify(unlockSequence));
-        
-        // Mark onboarding as completed - save multiple times to ensure it sticks
-        await AsyncStorage.setItem('hasCompletedOnboarding', 'true');
-        
+        // Use multiSet for atomic operation to prevent app entering bad state
+        await AsyncStorage.multiSet([
+          ['unlockSequence', JSON.stringify(unlockSequence)],
+          ['hasCompletedOnboarding', 'true'],
+        ]);
+
         // Verify the data was saved
-        const verifyOnboarding = await AsyncStorage.getItem('hasCompletedOnboarding');
-        const verifySequence = await AsyncStorage.getItem('unlockSequence');
-        
+        const results = await AsyncStorage.multiGet(['hasCompletedOnboarding', 'unlockSequence']);
+        const verifyOnboarding = results[0][1];
+        const verifySequence = results[1][1];
+
         if (verifyOnboarding !== 'true' || !verifySequence) {
           // Try one more time if verification failed
-          await AsyncStorage.setItem('unlockSequence', JSON.stringify(unlockSequence));
-          await AsyncStorage.setItem('hasCompletedOnboarding', 'true');
+          await AsyncStorage.multiSet([
+            ['unlockSequence', JSON.stringify(unlockSequence)],
+            ['hasCompletedOnboarding', 'true'],
+          ]);
         }
-        
+
         // Navigate to main menu
         router.replace('/main-menu');
       } catch (error) {

@@ -20,6 +20,14 @@ import AnimationManager, {
   AnimationConfig,
   AnimationElement,
 } from './utils/AnimationManager';
+import { debug } from './utils/debug';
+import {
+  SWIPE_THRESHOLD,
+  FEEDBACK_DURATION,
+  SEQUENCE_TIMEOUT,
+  CORNER_SIZE_RATIO,
+  CORNER_SIZE_MIN,
+} from './constants';
 
 // Default animation components (fallbacks)
 import BasicShapesAnimation from './animations/basic-shapes/animation';
@@ -40,15 +48,13 @@ interface TouchZone {
   height: number;
 }
 
-// Dynamic corner size based on screen dimensions (25% of smaller dimension, min 120px)
-const CORNER_SIZE = Math.max(120, Math.min(width, height) * 0.25);
-// Default sequence timeout (overridden by AnimationManager)
+// Dynamic corner size based on screen dimensions
+const CORNER_SIZE = Math.max(CORNER_SIZE_MIN, Math.min(width, height) * CORNER_SIZE_RATIO);
 
 export default function AnimationScreen() {
   const [unlockSequence, setUnlockSequence] = useState<Corner[]>([]);
   const [currentSequence, setCurrentSequence] = useState<Corner[]>([]);
   const [wrongSequenceIndicator, setWrongSequenceIndicator] = useState(false);
-  const [whiteNoiseEnabled, setWhiteNoiseEnabled] = useState(true);
   const [sleepTimer, setSleepTimer] = useState<number>(30);
   // We no longer need isPlaying state as we're using AudioManager
   const [currentAnimation, setCurrentAnimation] = useState<
@@ -117,11 +123,8 @@ export default function AnimationScreen() {
             shouldDuckAndroid: false,
             playThroughEarpieceAndroid: false,
           });
-        } catch (audioError: any) {
-          console.log(
-            'Audio mode setup failed:',
-            audioError?.message || 'Unknown error'
-          );
+        } catch (audioError: unknown) {
+          debug('Audio mode setup failed:', (audioError as Error)?.message || 'Unknown error');
         }
 
         // Try to hide system UI (immersive mode) - only on mobile
@@ -129,11 +132,8 @@ export default function AnimationScreen() {
           await ScreenOrientation.lockAsync(
             ScreenOrientation.OrientationLock.PORTRAIT
           );
-        } catch (orientationError: any) {
-          console.log(
-            'Orientation lock not supported (likely web environment):',
-            orientationError?.message || 'Unknown error'
-          );
+        } catch (orientationError: unknown) {
+          debug('Orientation lock not supported:', (orientationError as Error)?.message || 'Unknown error');
         }
 
         // Hide navigation bar on Android
@@ -141,30 +141,24 @@ export default function AnimationScreen() {
           if (NavigationBar.setVisibilityAsync) {
             await NavigationBar.setVisibilityAsync('hidden');
           }
-        } catch (navError: any) {
-          console.log(
-            'Navigation bar control not supported:',
-            navError?.message || 'Unknown error'
-          );
+        } catch (navError: unknown) {
+          debug('Navigation bar control not supported:', (navError as Error)?.message || 'Unknown error');
         }
       } catch (error) {
-        console.error('Failed to initialize screen:', error);
+        debug('Failed to initialize screen:', error);
       }
     };
 
     const loadSettings = async () => {
       try {
         const savedSequence = await AsyncStorage.getItem('unlockSequence');
-        const savedWhiteNoise = await AsyncStorage.getItem('whiteNoiseEnabled');
         const savedTimer = await AsyncStorage.getItem('sleepTimer');
 
         if (savedSequence) {
           setUnlockSequence(JSON.parse(savedSequence));
         }
-        if (savedWhiteNoise !== null) {
-          const enabled = savedWhiteNoise === 'true';
-          setWhiteNoiseEnabled(enabled);
-        }
+        // Note: whiteNoiseEnabled is handled directly from AsyncStorage in init()
+        // to avoid stale state issues
         if (savedTimer) {
           const timer = parseInt(savedTimer);
           setSleepTimer(timer);
@@ -175,14 +169,14 @@ export default function AnimationScreen() {
         await animationManager.initialize();
         const selectedAnimation = animationManager.getSelectedAnimation();
         if (selectedAnimation) {
-          console.log('Loaded animation:', selectedAnimation.name);
+          debug('Loaded animation:', selectedAnimation.name);
           setCurrentAnimation(selectedAnimation);
           setAnimationElements(selectedAnimation.elements || []);
         } else {
-          console.log('No animation selected, using default');
+          debug('No animation selected, using default');
         }
       } catch (error) {
-        console.error('Failed to load settings:', error);
+        debug('Failed to load settings:', error);
       }
     };
 
@@ -247,7 +241,7 @@ export default function AnimationScreen() {
           router.replace('/main-menu');
         });
       } catch (error) {
-        console.error('Fade out error:', error);
+        debug('Fade out error:', error);
         router.replace('/main-menu');
       }
     };
@@ -258,10 +252,10 @@ export default function AnimationScreen() {
     // Start sleep timer to automatically return to main menu after specified minutes
     const startSleepTimer = (minutes: number) => {
       if (minutes > 0) {
-        console.log(`Sleep timer started: ${minutes} minutes`);
+        debug(`Sleep timer started: ${minutes} minutes`);
         // Store the timer reference so we can clear it if needed
         const timerRef = setTimeout(() => {
-          console.log('Sleep timer expired, returning to main menu');
+          debug('Sleep timer expired, returning to main menu');
           fadeOutAndExit();
         }, minutes * 60 * 1000);
 
@@ -290,7 +284,7 @@ export default function AnimationScreen() {
         // AudioManager will handle the state based on the toggle in main menu
         // Clear any existing sleep timer
         if (sequenceTimeoutRef.current) {
-          console.log('Clearing existing sleep timer');
+          debug('Clearing existing sleep timer');
           clearTimeout(sequenceTimeoutRef.current);
           sequenceTimeoutRef.current = null;
         }
@@ -300,7 +294,7 @@ export default function AnimationScreen() {
           await NavigationBar.setVisibilityAsync('visible');
         }
       } catch (error) {
-        console.error('Cleanup error:', error);
+        debug('Cleanup error:', error);
       }
     };
 
@@ -322,14 +316,14 @@ export default function AnimationScreen() {
       // Ensure white noise state matches the saved toggle state
       if (shouldPlayWhiteNoise && !audioManager.isWhiteNoisePlaying()) {
         // Toggle is ON but white noise is not playing - start it
-        console.log('Starting white noise based on saved toggle state');
-        audioManager.play();
+        debug('Starting white noise based on saved toggle state');
+        await audioManager.play();
       } else if (!shouldPlayWhiteNoise && audioManager.isWhiteNoisePlaying()) {
         // Toggle is OFF but white noise is playing - stop it
-        console.log('Stopping white noise based on saved toggle state');
-        audioManager.stop();
+        debug('Stopping white noise based on saved toggle state');
+        await audioManager.stop();
       } else {
-        console.log('White noise state already matches saved toggle state');
+        debug('White noise state already matches saved toggle state');
       }
 
       // Start sleep timer if enabled and not already started
@@ -353,90 +347,44 @@ export default function AnimationScreen() {
       cleanup();
       backHandler.remove();
     };
-  }, [
-    animationValue,
-    rotationValue,
-    scaleValue,
-    sleepTimer,
-    whiteNoiseEnabled,
-  ]); // Include all dependencies used in the effect
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only on mount - refs (animationValue, etc.) don't change
 
   // Additional protection against iOS back swipe gesture
   useFocusEffect(
     React.useCallback(() => {
       // This runs when the screen comes into focus
-      console.log('Animation screen focused - back gesture protection active');
-      
+      debug('Animation screen focused - back gesture protection active');
+
       // Additional back handler for extra protection
       const backHandler = BackHandler.addEventListener(
         'hardwareBackPress',
         () => {
-          console.log('Hardware back press blocked in animation screen');
+          debug('Hardware back press blocked in animation screen');
           return true; // Prevent default back action
         }
       );
 
       return () => {
         // Cleanup when screen loses focus
-        console.log('Animation screen unfocused - back gesture protection removed');
+        debug('Animation screen unfocused - back gesture protection removed');
         backHandler.remove();
       };
     }, [])
   );
 
-  // All these functions are now inside useEffect
-
-  // This function is no longer needed as we're using AudioManager
-  // Keeping it commented out for reference
-  /*
-  const loadAndPlayWhiteNoise = async () => {
-    try {
-      // Unload any existing sound first
-      if (soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-      }
-      
-      // Load the white noise sound
-      const { sound } = await Audio.Sound.createAsync(
-        require('../assets/audio/white-noise.mp3'),
-        { isLooping: true, volume: 0.7 },
-        status => {
-          if (status.isLoaded) {
-            setIsPlaying(status.isPlaying);
-          }
-        }
-      );
-      
-      soundRef.current = sound;
-      await sound.playAsync();
-    } catch (error) {
-      console.error('Failed to load and play white noise:', error);
-    }
-  };
-  */
-
-  // startAnimations moved inside useEffect
-
   const getCornerFromTouch = (x: number, y: number): Corner | null => {
-    console.log(`Checking touch at (${x}, ${y}) against zones:`);
     for (const zone of touchZones) {
-      console.log(
-        `  ${zone.corner}: x(${zone.x}-${zone.x + zone.width}) y(${zone.y}-${
-          zone.y + zone.height
-        })`
-      );
       if (
         x >= zone.x &&
         x <= zone.x + zone.width &&
         y >= zone.y &&
         y <= zone.y + zone.height
       ) {
-        console.log(`  ✓ Touch matched ${zone.corner}!`);
+        debug(`Touch matched ${zone.corner}`);
         return zone.corner;
       }
     }
-    console.log('  ✗ No corner matched');
     return null;
   };
 
@@ -467,8 +415,8 @@ export default function AnimationScreen() {
         // Wrong sequence - show indicator and reset
         setWrongSequenceIndicator(true);
         setCurrentSequence([]);
-        // Hide indicator after 1 second
-        setTimeout(() => setWrongSequenceIndicator(false), 1000);
+        // Hide indicator after feedback duration
+        setTimeout(() => setWrongSequenceIndicator(false), FEEDBACK_DURATION);
         return;
       }
     }
@@ -478,21 +426,20 @@ export default function AnimationScreen() {
       setCurrentSequence([]);
       // Show timeout indicator
       setWrongSequenceIndicator(true);
-      setTimeout(() => setWrongSequenceIndicator(false), 1000);
-    }, 3000); // Default timeout
+      setTimeout(() => setWrongSequenceIndicator(false), FEEDBACK_DURATION);
+    }, SEQUENCE_TIMEOUT);
   };
 
   // Create pan responder for touch handling with swipe blocking
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: (evt, gestureState) => {
+    onMoveShouldSetPanResponder: (_evt, gestureState) => {
       // Block swipe gestures by checking movement distance
       const { dx, dy } = gestureState;
-      const swipeThreshold = 15; // pixels - threshold for detecting swipes
-      
+
       // If movement exceeds threshold, it's likely a swipe - capture and block it
-      if (Math.abs(dx) > swipeThreshold || Math.abs(dy) > swipeThreshold) {
-        console.log(`Swipe blocked: dx=${dx}, dy=${dy}`);
+      if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD) {
+        debug(`Swipe blocked: dx=${dx}, dy=${dy}`);
         return true; // Capture the gesture to prevent it from propagating
       }
       return false; // Allow small movements (taps)
@@ -501,32 +448,23 @@ export default function AnimationScreen() {
       const { pageX, pageY, locationX, locationY } = evt.nativeEvent;
       const x = pageX || locationX || 0;
       const y = pageY || locationY || 0;
-      console.log(
-        `Touch detected at: (${x}, ${y}) - Screen: ${width}x${height} - Corner size: ${CORNER_SIZE}`
-      );
       handleTouch(x, y);
     },
-    onPanResponderMove: (evt, gestureState) => {
+    onPanResponderMove: (_evt, gestureState) => {
       // Block any movement to prevent swipe actions
       const { dx, dy } = gestureState;
-      const swipeThreshold = 15;
-      
+
       // If this is a swipe gesture, prevent any further action
-      if (Math.abs(dx) > swipeThreshold || Math.abs(dy) > swipeThreshold) {
-        console.log(`Swipe movement blocked: dx=${dx}, dy=${dy}`);
+      if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD) {
         return; // Do nothing for swipe movements
       }
     },
-    onPanResponderRelease: (evt, gestureState) => {
+    onPanResponderRelease: (_evt, gestureState) => {
       // Only process release if it wasn't a swipe
       const { dx, dy } = gestureState;
-      const swipeThreshold = 15;
-      
-      if (Math.abs(dx) <= swipeThreshold && Math.abs(dy) <= swipeThreshold) {
-        // This was a tap, not a swipe - safe to process
-        console.log('Touch release processed (not a swipe)');
-      } else {
-        console.log('Swipe release blocked');
+
+      if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD) {
+        debug('Swipe release blocked');
       }
     },
   });
@@ -557,24 +495,18 @@ export default function AnimationScreen() {
         AnimationComponent = BurstingBubblesAnimation;
         break;
       default:
-        console.log('No matching animation found for ID:', currentAnimation.id);
+        debug('No matching animation found for ID:', currentAnimation.id);
         AnimationComponent = BasicShapesAnimation;
     }
-    // Debug the component
-    console.log('AnimationComponent type:', typeof AnimationComponent);
-    console.log(
-      'AnimationComponent is undefined:',
-      AnimationComponent === undefined
-    );
 
     // Check if AnimationComponent is valid before rendering
     if (!AnimationComponent) {
-      console.error('AnimationComponent is undefined or null');
+      debug('AnimationComponent is undefined or null');
       return (
         <View style={styles.animationContainer}>
           <ActivityIndicator size="large" color={designTokens.colors.primary} />
           <View style={{ marginTop: 20 }}>
-            <Text style={{ textAlign: 'center', color: 'red' }}>
+            <Text style={{ textAlign: 'center', color: designTokens.colors.error }}>
               Error loading animation
             </Text>
           </View>
@@ -596,18 +528,16 @@ export default function AnimationScreen() {
           width={width}
           height={height}
           onBackgroundTap={handleTouch}
-          onAnimationLoaded={() =>
-            console.log(`${currentAnimation.id} animation loaded`)
-          }
+          onAnimationLoaded={() => debug(`${currentAnimation.id} animation loaded`)}
         />
       );
     } catch (error) {
-      console.error('Error rendering animation component:', error);
+      debug('Error rendering animation component:', error);
       return (
         <View style={styles.animationContainer}>
           <ActivityIndicator size="large" color={designTokens.colors.primary} />
           <View style={{ marginTop: 20 }}>
-            <Text style={{ textAlign: 'center', color: 'red' }}>
+            <Text style={{ textAlign: 'center', color: designTokens.colors.error }}>
               Error rendering animation
             </Text>
           </View>

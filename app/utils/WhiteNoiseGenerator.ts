@@ -9,8 +9,9 @@ class WhiteNoiseGenerator {
   private activeSound: 'sound1' | 'sound2' = 'sound1';
   private isPlaying: boolean = false;
   private isInitialized: boolean = false;
+  private isCrossfading: boolean = false;
   private volume: number = 1.0;
-  private playbackInterval: NodeJS.Timeout | null = null;
+  private playbackInterval: ReturnType<typeof setInterval> | null = null;
 
   private constructor() {}
 
@@ -73,9 +74,14 @@ class WhiteNoiseGenerator {
     if (!this.isPlaying) {
       this.isPlaying = true;
       const sound = this.activeSound === 'sound1' ? this.sound1 : this.sound2;
-      await sound!.setVolumeAsync(this.volume);
-      await sound!.playAsync();
-      this.monitorPlayback();
+      if (sound) {
+        await sound.setVolumeAsync(this.volume);
+        await sound.playAsync();
+        this.monitorPlayback();
+      } else {
+        this.isPlaying = false;
+        return false;
+      }
     }
     return true;
   }
@@ -95,46 +101,71 @@ class WhiteNoiseGenerator {
   private monitorPlayback() {
     if (this.playbackInterval) {
       clearInterval(this.playbackInterval);
+      this.playbackInterval = null;
     }
 
     this.playbackInterval = setInterval(async () => {
-      if (!this.isPlaying) return;
+      // Clear interval when stopped to prevent memory leak
+      if (!this.isPlaying) {
+        if (this.playbackInterval) {
+          clearInterval(this.playbackInterval);
+          this.playbackInterval = null;
+        }
+        return;
+      }
 
       const currentSound = this.activeSound === 'sound1' ? this.sound1 : this.sound2;
-      const status = await currentSound?.getStatusAsync();
+      if (!currentSound) return;
+
+      const status = await currentSound.getStatusAsync();
 
       if (status?.isLoaded && status.isPlaying) {
         const duration = status.durationMillis ?? 0;
         const position = status.positionMillis;
 
         if (duration - position < FADE_DURATION) {
-          this.crossfade();
+          await this.crossfade();
         }
       }
     }, 1000);
   }
 
-  private async crossfade() {
-    const inactiveSound = this.activeSound === 'sound1' ? this.sound2 : this.sound1;
-    const activeSound = this.activeSound === 'sound1' ? this.sound1 : this.sound2;
+  private async crossfade(): Promise<void> {
+    // Prevent multiple simultaneous crossfades
+    if (this.isCrossfading) return;
+    this.isCrossfading = true;
 
-    // Switch active sound
-    this.activeSound = this.activeSound === 'sound1' ? 'sound2' : 'sound1';
+    try {
+      const inactiveSound = this.activeSound === 'sound1' ? this.sound2 : this.sound1;
+      const activeSound = this.activeSound === 'sound1' ? this.sound1 : this.sound2;
 
-    await inactiveSound!.setPositionAsync(0);
-    await inactiveSound!.setVolumeAsync(0);
-    await inactiveSound!.playAsync();
+      if (!inactiveSound || !activeSound) {
+        this.isCrossfading = false;
+        return;
+      }
 
-    // Fade in the new sound
-    this.fade(inactiveSound!, this.volume);
-    // Fade out the old sound
-    this.fade(activeSound!, 0, async () => {
-      await activeSound!.stopAsync();
-    });
+      // Switch active sound
+      this.activeSound = this.activeSound === 'sound1' ? 'sound2' : 'sound1';
+
+      await inactiveSound.setPositionAsync(0);
+      await inactiveSound.setVolumeAsync(0);
+      await inactiveSound.playAsync();
+
+      // Fade in the new sound and fade out the old sound in parallel
+      await Promise.all([
+        this.fade(inactiveSound, this.volume),
+        this.fade(activeSound, 0).then(async () => {
+          await activeSound.stopAsync();
+        }),
+      ]);
+    } finally {
+      this.isCrossfading = false;
+    }
   }
 
-  private async fade(sound: Audio.Sound, toVolume: number, onComplete?: () => void) {
-    const fromVolume = (await sound.getStatusAsync() as any)?.volume ?? 0;
+  private async fade(sound: Audio.Sound, toVolume: number): Promise<void> {
+    const status = await sound.getStatusAsync();
+    const fromVolume = status.isLoaded ? (status.volume ?? 0) : 0;
     const steps = 20;
     const stepDuration = FADE_DURATION / steps;
 
@@ -144,14 +175,15 @@ class WhiteNoiseGenerator {
       await new Promise(resolve => setTimeout(resolve, stepDuration));
     }
     await sound.setVolumeAsync(toVolume);
-    onComplete?.();
   }
 
   public async setVolume(volume: number): Promise<void> {
     this.volume = Math.max(0, Math.min(1, volume));
     if (this.isPlaying) {
       const sound = this.activeSound === 'sound1' ? this.sound1 : this.sound2;
-      await sound!.setVolumeAsync(this.volume);
+      if (sound) {
+        await sound.setVolumeAsync(this.volume);
+      }
     }
   }
 
@@ -160,12 +192,13 @@ class WhiteNoiseGenerator {
   }
 
   public async cleanup(): Promise<void> {
-    this.stop();
+    await this.stop();
     await this.sound1?.unloadAsync();
     await this.sound2?.unloadAsync();
     this.sound1 = null;
     this.sound2 = null;
     this.isInitialized = false;
+    this.isCrossfading = false;
   }
 }
 

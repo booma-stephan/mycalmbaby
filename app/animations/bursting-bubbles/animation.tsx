@@ -99,9 +99,8 @@ const SpaceBubblesAnimation = React.memo(({
   // We avoid addListener, which was always returning 0 immediately and caused
   // positions to collapse to the origin.
   const getAnimatedValue = useCallback((animValue: Animated.Value): number => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/ban-ts-comment
     // @ts-ignore – __getValue is private but safe in JS runtime
-    return (animValue as any).__getValue() as number;
+    return (animValue as Record<string, unknown>).__getValue() as number;
   }, []);
 
   // Create a burst of dots at a specific position

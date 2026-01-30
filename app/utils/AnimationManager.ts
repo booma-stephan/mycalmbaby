@@ -4,7 +4,7 @@ export interface AnimationConfig {
   id: string;
   name: string;
   description: string;
-  thumbnail?: any;
+  thumbnail?: number; // require() returns number in React Native
   thumbnailPath?: string;
   folder: string;
   elements?: AnimationElement[];
@@ -96,7 +96,7 @@ class AnimationManager {
    * @param folder The animation folder name
    * @returns The thumbnail image or undefined if not found
    */
-  private loadAnimationThumbnail(folder: string): any {
+  private loadAnimationThumbnail(folder: string): number | undefined {
     try {
       switch (folder) {
         case 'basic-shapes':

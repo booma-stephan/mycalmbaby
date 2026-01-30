@@ -86,7 +86,7 @@ const MUSICAL_NOTES = [
 
 /**
  * Enhanced Basic Shapes Animation with Physics and Particles
- * 
+ *
  * This animation renders geometric shapes with advanced interactions:
  * - Physics simulation with gravity and collisions
  * - Particle effects and trails
@@ -94,7 +94,7 @@ const MUSICAL_NOTES = [
  * - Sound feedback and haptics
  * - Dynamic color transitions
  */
-export default function BasicShapesAnimation({
+function BasicShapesAnimation({
   animationValue,
   rotationValue,
   scaleValue,
@@ -671,3 +671,5 @@ export default function BasicShapesAnimation({
     </View>
   );
 }
+
+export default React.memo(BasicShapesAnimation);

@@ -15,11 +15,11 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
  * Enhanced "Space Journey" animation with parallax stars, rotating planets,
  * and smooth looping transitions.
  */
-const SpaceJourneyAnimation: React.FC<AnimationProps> = ({ 
-  width = SCREEN_W, 
-  height = SCREEN_H, 
-  elements = [], 
-  onAnimationLoaded 
+const SpaceJourneyAnimationComponent: React.FC<AnimationProps> = ({
+  width = SCREEN_W,
+  height = SCREEN_H,
+  elements = [],
+  onAnimationLoaded,
 }) => {
   // Initialize animation values internally
   const animationValue = useRef(new Animated.Value(0)).current;
@@ -245,5 +245,7 @@ const styles = StyleSheet.create({
     borderRadius: 100,
   },
 });
+
+const SpaceJourneyAnimation = React.memo(SpaceJourneyAnimationComponent);
 
 export default SpaceJourneyAnimation;

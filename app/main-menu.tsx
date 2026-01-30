@@ -6,7 +6,7 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Image
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,6 +20,7 @@ import {
 } from './components/UIComponents';
 import AnimationCarousel from './components/AnimationCarousel';
 import AnimationManager, { AnimationConfig } from './utils/AnimationManager';
+import { debug } from './utils/debug';
 
 type SleepTimer = 15 | 30 | 60;
 
@@ -43,9 +44,9 @@ export default function MainMenuScreen() {
         
         // Explicitly set audio state to match the toggle
         if (shouldPlayWhiteNoise) {
-          AudioManager.play();
+          await AudioManager.play();
         } else {
-          AudioManager.stop();
+          await AudioManager.stop();
         }
         if (savedTimer) {
           setSleepTimer(parseInt(savedTimer) as SleepTimer);
@@ -60,7 +61,7 @@ export default function MainMenuScreen() {
           setSelectedAnimationId(selectedAnimation.id);
         }
       } catch (error) {
-        console.error('Failed to load settings:', error);
+        debug('Failed to load settings:', error);
       }
     };
 
@@ -77,25 +78,26 @@ export default function MainMenuScreen() {
     await animationManager.selectAnimation(animationId);
   };
 
-  const handleSleepTimerChange = (timer: SleepTimer) => {
+  const handleSleepTimerChange = async (timer: SleepTimer) => {
     setSleepTimer(timer);
-    AsyncStorage.setItem('sleepTimer', timer.toString());
+    await AsyncStorage.setItem('sleepTimer', timer.toString());
   };
 
   const handleWhiteNoiseToggle = async (value: boolean) => {
     setWhiteNoiseEnabled(value);
-    await AsyncStorage.getItem('sleepTimer').then((value) => {
-      if (value) {
-        setSleepTimer(parseInt(value) as SleepTimer);
+    try {
+      const savedTimer = await AsyncStorage.getItem('sleepTimer');
+      if (savedTimer) {
+        setSleepTimer(parseInt(savedTimer) as SleepTimer);
       }
-    }).catch((error) => {
-      console.error('Failed to get sleep timer:', error);
-    });
+    } catch (error) {
+      debug('Failed to get sleep timer:', error);
+    }
     await AsyncStorage.setItem('whiteNoiseEnabled', value.toString());
     if (value) {
-      AudioManager.play();
+      await AudioManager.play();
     } else {
-      AudioManager.stop();
+      await AudioManager.stop();
     }
   };
 
@@ -151,7 +153,7 @@ export default function MainMenuScreen() {
         </View>
 
         <TouchableOpacity style={styles.playButton} onPress={handlePlay}>
-          <Ionicons name="play" size={32} color="#FFFFFF" />
+          <Ionicons name="play" size={32} color={designTokens.colors.white} />
           <Text style={styles.playButtonText}>Play</Text>
         </TouchableOpacity>
 
@@ -252,9 +254,9 @@ const styles = StyleSheet.create({
     marginTop: -4,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1A1A1A',
+    fontSize: designTokens.typography.sizes.md,
+    fontWeight: designTokens.typography.weights.semibold,
+    color: designTokens.colors.charcoal,
   },
   playButton: {
     backgroundColor: designTokens.colors.primary,
@@ -276,10 +278,10 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    marginBottom: 12,
+    fontSize: designTokens.typography.sizes.base,
+    fontWeight: designTokens.typography.weights.semibold,
+    color: designTokens.colors.charcoal,
+    marginBottom: designTokens.spacing.md,
   },
   segmentedControl: {
     flexDirection: 'row',
@@ -298,16 +300,16 @@ const styles = StyleSheet.create({
     height: 36,
   },
   segmentButtonActive: {
-    backgroundColor: '#00BFA6',
+    backgroundColor: designTokens.colors.primary,
   },
   segmentButtonText: {
-    fontSize: 16,
-    color: '#606060',
-    fontWeight: '500',
+    fontSize: designTokens.typography.sizes.base,
+    color: designTokens.colors.darkGray,
+    fontWeight: designTokens.typography.weights.medium,
   },
   segmentButtonTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: designTokens.colors.white,
+    fontWeight: designTokens.typography.weights.semibold,
   },
   toggleRow: {
     flexDirection: 'row',
@@ -316,9 +318,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   toggleLabel: {
-    fontSize: 16,
+    fontSize: designTokens.typography.sizes.base,
     color: designTokens.colors.charcoal,
-    fontWeight: '500',
+    fontWeight: designTokens.typography.weights.medium,
   },
   bottomActions: {
     alignItems: 'center',
@@ -329,8 +331,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   textButtonText: {
-    fontSize: 16,
-    color: '#00BFA6',
-    fontWeight: '500'
+    fontSize: designTokens.typography.sizes.base,
+    color: designTokens.colors.primary,
+    fontWeight: designTokens.typography.weights.medium,
   }
 });

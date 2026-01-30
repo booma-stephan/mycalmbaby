@@ -45,7 +45,7 @@ const AnimationCarousel: React.FC<AnimationCarouselProps> = ({
   }, []);
   
   // Calculate item size based on container width
-  const getItemLayout = useCallback((_: any, index: number) => ({
+  const getItemLayout = useCallback((_: ArrayLike<AnimationConfig> | null | undefined, index: number) => ({
     length: CARD_WIDTH + CARD_SPACING,
     offset: (CARD_WIDTH + CARD_SPACING) * index,
     index,
@@ -62,6 +62,9 @@ const AnimationCarousel: React.FC<AnimationCarouselProps> = ({
     }
   }, [selectedAnimation, selectedIndex, currentIndex]);
 
+  // Note: useNativeDriver: false is required here because scroll events
+  // need JS thread to read contentOffset.x for interpolation calculations.
+  // To enable native driver, would need to migrate to react-native-reanimated.
   const handleScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { x: scrollX } } }],
     { useNativeDriver: false }
