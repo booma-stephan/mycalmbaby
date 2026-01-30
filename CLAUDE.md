@@ -70,6 +70,7 @@ npm install              # Install dependencies
 npx expo start           # Start dev server
 npx expo start --ios     # Run iOS simulator
 npm run lint             # ESLint checks
+npm run release          # Production release wizard
 ```
 
 ## Git Workflow & Branching Strategy
@@ -119,12 +120,24 @@ npx expo start --dev-client
 Triggered automatically on push to `main` for internal testing.
 
 ### Production Release (manual)
-**Option 1: GitHub Actions UI (recommended)**
+**Option 1: Release Script (recommended)**
+```bash
+npm run release
+```
+The script will:
+- Verify git is clean and on `main` branch
+- Check last preview build succeeded
+- Prompt for new version number
+- Update `package.json` and `app.json`
+- Commit and push version bump
+- Offer to trigger build via EAS CLI or GitHub Actions
+
+**Option 2: GitHub Actions UI**
 1. Update version in `package.json` and `app.json`
 2. Go to Actions → "Production Release" → Run workflow
 3. Choose whether to auto-submit to App Store
 
-**Option 2: CLI**
+**Option 3: Manual CLI**
 ```bash
 # 1. Update version in package.json and app.json
 # 2. Build for production
